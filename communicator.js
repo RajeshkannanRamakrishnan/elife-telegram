@@ -26,7 +26,7 @@ function setup(tg) {
  *      way/
  * Check if this is our owner and only then respond.
  */
-function handleMsg(ctx) {
+async function handleMsg(ctx) {
     TELEGRAM = ctx.telegram
     isOwner(ctx, (err, isowner) => {
         if(err) {
@@ -35,8 +35,23 @@ function handleMsg(ctx) {
             else ctx.reply('Error!')
             return
         }
-        if(isowner) handleOwnerMsg(ctx)
-        else handleNotOwnerMsg(ctx)
+        if(isowner) {
+            if(ctx.message.document) {
+                TELEGRAM.getFileLink(ctx.message.document.file_id).then(fileUrl => {
+                    handleOwnerMsg(ctx, fileUrl, ctx.message.caption)
+                }).catch(e => handleOwnerMsg(ctx, null, null) )
+            } else {
+                handleOwnerMsg(ctx, null, null)
+            }
+        } else {
+            if(ctx.message.document) {
+                TELEGRAM.getFileLink(ctx.message.document.file_id).then(fileUrl => {
+                    handleNotOwnerMsg(ctx, fileUrl, ctx.message.caption)
+                }).catch(e => handleNotOwnerMsg(ctx, null, null) )
+            } else {
+                handleNotOwnerMsg(ctx, null, null)
+            }
+        }
     })
 }
 
@@ -103,7 +118,7 @@ function isOwner(ctx, cb) {
  * In the special case that it is a `start` message, respond with
  * welcoming the user.
  */
-function handleOwnerMsg(ctx) {
+ function handleOwnerMsg(ctx, fileUrl, caption) {
     if(ctx.message.text == '/start') {
         if(owner.firstTime) {
             let n = ctx.message.from ? ctx.message.from.username : ""
@@ -112,12 +127,14 @@ function handleOwnerMsg(ctx) {
         }
         ctx.reply(`Here's couple of commands that would be handy any time you need\n/help - Get a list of all commands that you can use at any time\n /balance - See wallet balance`)
     } else {
+       
         client.send({
             type: 'message',
             chan: botKey,
             ctx: ctx.chat.id,
             from: ctx.from,
-            msg: ctx.message.text
+            msg: (caption ? caption : (ctx.message.text ? ctx.message.text : 'file')),
+            file: fileUrl
         }, (err) => {
             if(err) {
                 u.showErr(err)
@@ -131,13 +148,14 @@ function handleOwnerMsg(ctx) {
  * Send the request as a 'non-owner' message to the communication
  * manager.
  */
-function handleNotOwnerMsg(ctx) {
+function handleNotOwnerMsg(ctx, fileUrl, caption) {
     client.send({
         type: 'not-owner-message',
         chan: botKey,
         ctx: ctx.chat.id,
         from: ctx.from,
-        msg: ctx.message.text
+        msg: (caption ? caption : (ctx.message.text ? ctx.message.text : 'file')),
+        file: fileUrl
     }, (err) => {
         if(err) {
             u.showErr(err)
@@ -163,6 +181,8 @@ botChannel.on('reply', (req, cb) => {
     .then(()=>cb())
     .catch(cb)
 })
+
+
 
 /**
   *   outcome/
